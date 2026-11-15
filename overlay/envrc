@@ -9,6 +9,7 @@
 
 _qde_self="$(readlink -f "${BASH_SOURCE[0]:-.envrc}")"
 _qde_sidecar="$(dirname "$(dirname "$_qde_self")")"
+_qde_qgis_root="$(dirname "$_qde_sidecar")"
 
 export QGIS_DEV_SIDECAR="$_qde_sidecar"
 
@@ -31,7 +32,23 @@ watch_file "$_qde_sidecar/flake.lock"
 # tasks.sh is baked into the devshell's qgis-dev binary — reload when it
 # changes. (Profiles/suppressions/motd are read live and need no watch.)
 watch_file "$_qde_sidecar/lib/tasks.sh"
-use flake "path:$_qde_sidecar"
+# The `qgis` input is this QGIS checkout itself (read live via --impure,
+# not a locked snapshot — see flake.nix). Watching its flake files here
+# means a plain `git pull` in the QGIS checkout — which can change its
+# flake.nix (new WITH_* deps, etc.) or flake.lock (bumped nixpkgs) — gets
+# picked up automatically on your next shell prompt, no extra step. For an
+# immediate refresh inside an already-open session, run `qgis-dev sync`.
+watch_file "$_qde_qgis_root/flake.nix"
+watch_file "$_qde_qgis_root/flake.lock"
+# Override `qgis` with this real checkout so the devshell always matches
+# whatever QGIS revision is actually checked out here, not the flake's
+# committed github pin. git+file (not a bare path:) because upstream's
+# own flake.nix selects its source via lib.fileset.gitTracked, which
+# rejects a plain directory copy — it needs a git-fetched source, same as
+# the github: pin already provides. --impure allows fetching this local
+# git tree even while it has uncommitted changes (normal while patching
+# QGIS; the embed/overlay itself never counts, it's git-excluded).
+use flake "path:$_qde_sidecar" --override-input qgis "git+file://$_qde_qgis_root" --impure
 
 # Activation banner on every direnv load. (The flake's shellHook also shows
 # it, but nix-direnv caches shellHook output — .envrc runs every time.)

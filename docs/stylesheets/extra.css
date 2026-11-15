@@ -206,16 +206,6 @@ body,
     color: var(--surface-cloud);
 }
 
-/* The product GIF lives below the hero as a centred figure, not inside
-   it. This class wraps the standalone image. */
-.kz-figure {
-    display: block;
-    margin: 0 auto 2rem;
-    max-width: 720px;
-    border-radius: 0.5rem;
-    border: 1px solid var(--rule-line);
-}
-
 /* Small domain icon at the top of each data-model/NN-*.md page.
    The SVG has no intrinsic width, so without this it would expand
    to the content column width (~720px) — far too dominant. */

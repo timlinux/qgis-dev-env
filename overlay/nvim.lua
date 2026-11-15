@@ -380,6 +380,10 @@ map('<leader>pR', function()
   detached({ 'report', '--pdf', '--open' }, 'Build-performance infographic (PDF) — opening…')
 end, 'Build report (PDF infographic)')
 
+map('<leader>pU', function()
+  task({ 'sync' }, { show = 'buffer', title = 'sync qgis input' })
+end, 'Sync QGIS deps (after git pull)')
+
 map('<leader>pv', function()
   task({ 'doctor' }, { show = 'buffer', title = 'doctor' })
 end, 'Doctor (health check)')

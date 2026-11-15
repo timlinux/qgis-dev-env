@@ -902,6 +902,24 @@ cmd_qa() {
   esac
 }
 
+# --------------------------------------------------------------------- sync
+# `qgis` is overridden at invocation time with the real checkout path
+# (see flake.nix / overlay/envrc — never a declared relative input, which
+# hits real Nix bugs), so there is nothing to re-lock: every activation
+# already re-reads this checkout fresh. direnv's watch_file on QGIS's own
+# flake.nix/flake.lock already re-evaluates automatically on your next
+# shell prompt after a `git pull`. This command only forces that right
+# now, inside an already-open session.
+cmd_sync() {
+  note "QGIS checkout: $(git -C "$ROOT" log -1 --format='%h %cd %s' --date=short 2>/dev/null || echo "$ROOT")"
+  if [[ -n "${DIRENV_DIR:-}" ]] && command -v direnv >/dev/null; then
+    direnv reload 2>/dev/null || true
+    note "direnv cache invalidated — your next shell prompt picks up any new QGIS dependencies"
+  else
+    note "no active direnv session detected — re-enter the checkout (or run 'nix develop --impure --override-input qgis \"git+file://$ROOT\"') to pick up changes"
+  fi
+}
+
 # -------------------------------------------------------------------- doctor
 cmd_doctor() {
   local fails=0
@@ -978,6 +996,7 @@ qgis-dev — QGIS developer tasks (shared by `nix run .#<task>` and Neovim)
   report [--pdf|--svg|--png] [--open]   branded build-performance infographic
   perf [on|off|build-toggle|status]   CPU performance mode control
   ccache-stats | ccache-zero
+  sync                       refresh the devshell now (after a QGIS git pull); direnv does this automatically on your next prompt regardless
   doctor                     health + isolation check (all worktrees)
 EOF
 }
@@ -1097,6 +1116,10 @@ ccache-zero)
   command -v ccache >/dev/null || die "ccache not available"
   ccache -z
   note "ccache statistics zeroed"
+  ;;
+sync)
+  init
+  cmd_sync
   ;;
 doctor)
   init

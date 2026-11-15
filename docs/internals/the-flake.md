@@ -20,10 +20,31 @@ exposes every task as a runnable app.
 | `clang-tools-pin` (nixpkgs-unstable) | clang-format / clang-tidy at the QGIS-pinned major (v21); the toolchain nixpkgs only carries LLVM 19, and formatting must match CI (FR-Q4) |
 
 Because inputs are content-addressed and locked in `flake.lock`, every
-colleague resolves the identical toolchain. Entering the directory fetches
-the pinned QGIS *source snapshot* once (nix needs it to evaluate the
-devshell) — that is the ~240 MiB copy you see on first activation, not a
-QGIS build.
+colleague resolves the identical toolchain by default — and this default
+(the github pin) is what CI, a standalone clone, and `devShells.tooling`
+always evaluate. It's deliberately **not** declared as a local path: a
+relative path input that crosses outside this repo's own git tree hits a
+real Nix bug on some versions — `nix flake lock`/`nix flake check` fail
+with `error: 'flake.nix' is too short to be a valid store path`,
+regardless of whether the input is spelled as a `path:..` url string, a
+Nix path literal, or an attrs-form string. Every spelling goes through
+the same buggy resolution code once the input actually gets locked or
+fetched.
+
+Local embedded tracking (SRS C2, FR-N1) — so the devshell always matches
+whatever QGIS revision you *actually* have checked out, not this pin —
+happens entirely at invocation time instead, via
+`--override-input qgis "git+file://<absolute qgis root>" --impure`.
+`git+file:`, not a bare `path:`: upstream's own `flake.nix` selects its
+source via `lib.fileset.gitTracked`, which refuses a plain directory
+copy outright and wants a git-fetched source — exactly what `git+file:`
+gives it (the same kind of fetch the `github:` pin above already
+succeeds with). `--impure` is also what lets this fetch an
+actively-edited (uncommitted) checkout, not just a clean one. `.envrc`
+and the `qgis-dev`/`nix run .#<task>` app wrappers both supply this
+(resolved from the real checkout path, never a relative one), so it never
+touches the committed `flake.lock` and never hits the bug above. See
+[Activation & the devshell](activation.md) for where this is wired up.
 
 ## devShells
 
@@ -46,11 +67,19 @@ devshell and calls `qgis-dev`. Plus `bootstrap`, the docs apps
 (`handbook`, `handbook-build`, `handbook-pdf`) and `diagrams`. This is what
 gives terminal / editor / CI the same capabilities (FR-N4).
 
+The task apps' generated script is where the local-checkout override from
+the Inputs section above actually happens: it resolves the QGIS root from
+`git rev-parse --show-toplevel` (the same technique `qgis-dev`'s own
+`init()` uses) and runs its inner `nix develop --impure --override-input
+qgis "git+file://$qgis_root" …` — invisibly, so the outer `nix run
+.#<task>` itself needs no extra flags.
+
 ## checks & formatter
 
 `nix flake check` builds `checks.tests` (the bats suite, shebang-patched
 for the sandbox) and `checks.shellcheck`. `formatter` is nixfmt. CI runs
-exactly these.
+exactly these against the plain github-pinned `qgis` input — no QGIS
+checkout required, since CI never applies the local override.
 
 !!! note "No code embedded in Nix"
     Per the project's rules, the flake never inlines shell or lua. It

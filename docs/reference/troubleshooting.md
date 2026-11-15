@@ -144,6 +144,56 @@ Re-enter the shell.
 `qt.multimedia.symbolsresolver: Couldn't load pipewire-0.3` during builds
 is Qt probing for audio it doesn't need there. Harmless.
 
+### `error: 'flake.nix' is too short to be a valid store path` on `nix flake lock`/`nix flake check`
+
+**Symptom:** this exact error, no matter how the `qgis` input is spelled
+— a `path:..` url string, a Nix path literal (`type = "path"; path =
+../.;`), or an attrs-form string (`path = "..";`) — and no matter
+whether `--impure` is added. All three hit the identical failure at the
+identical evaluation step ("while updating the flake input 'qgis'").
+
+**Cause:** this flake is itself identified as `git+file://…` (it's a git
+checkout), and a *relative* path input that crosses outside that git
+tree — declared directly in `flake.nix`'s `inputs`, in any spelling —
+goes through a genuinely broken resolution path on some Nix/Lix versions.
+It is not a syntax problem; don't keep trying variations.
+
+**Fence:** don't declare the local checkout as a relative input at all.
+Keep `qgis.url = "github:qgis/QGIS";` committed (portable, CI-safe, no
+bug), and override it at invocation time with an **absolute**
+`git+file://` reference instead —
+`--override-input qgis "git+file://$(git rev-parse --show-toplevel)"
+--impure`. An absolute path supplied at the CLI never goes through the
+relative/git-tree-escaping code path that fails above, and — bonus — it
+never gets baked into the committed `flake.lock` as a machine-specific
+path either. `.envrc` and the `qgis-dev`/`nix run .#<task>` wrappers
+already do this for you; see [The flake](../internals/the-flake.md) and
+[Activation & the devshell](../internals/activation.md).
+
+### `lib.fileset.gitTracked: … argument is a store path within a working tree of a Git repository`
+
+**Symptom:** this error surfaces from *inside upstream QGIS's own*
+`flake.nix` evaluation, right after the `qgis` input override above
+resolves successfully — i.e. you get past the first bug and hit this one
+next.
+
+**Cause:** upstream's `flake.nix` selects its build source via
+`lib.fileset.gitTracked self` (or similar), which explicitly refuses a
+plain directory copy — the error names the exact pattern: "a source
+directory was imported into the store using a method such as
+`import "${./.}"` or `path:.`". A bare `--override-input qgis
+"path:<abs>"` is exactly that pattern. It doesn't reject `github:qgis/QGIS`
+because GitHub fetches are git-based, not a raw copy.
+
+**Fence:** override with `git+file://` instead of `path:` — same local
+checkout, fetched through Nix's git fetcher rather than copied as a plain
+directory, which is what `lib.fileset.gitTracked` actually wants (the
+error message itself suggests "a fetcher such as fetchGit"). `.envrc` and
+the `qgis-dev` wrappers already use `git+file://`. This also means an
+actively-edited (uncommitted but tracked) QGIS checkout needs `--impure`
+to fetch at all — already included — since a dirty git tree is otherwise
+refused.
+
 ## Git & isolation
 
 ### `git clean -fdx` deletes the embed and your build tree
