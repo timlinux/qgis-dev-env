@@ -20,8 +20,8 @@ Three interchangeable front-ends drive the same implementation, so pick
 whichever fits the moment:
 
 ```bash
-qgis-dev build              # in the devshell
-nix run .#build             # from anywhere (enters the devshell for you)
+qgis-dev build               # in the devshell
+nix run .#build               # from anywhere (enters the devshell for you)
 ```
 
 …or `<leader>pb` in Neovim.

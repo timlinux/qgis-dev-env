@@ -5,8 +5,6 @@ SPDX-License-Identifier: MIT
 
 # qgis-dev-env
 
-![QGIS Dev Env — Kartoza](docs/assets/qgis-dev-env.png)
-
 A reproducible, shareable, fully **isolated** developer environment overlay
 for hacking on [QGIS](https://github.com/qgis/QGIS) core with **NixOS + Nix
 flakes + Neovim**. Fast incremental builds (ccache + mold + Ninja), a
@@ -50,6 +48,14 @@ Then open Neovim in the checkout and press `<leader>p` — every task
 the menu with which-key labels. The same tasks exist as `qgis-dev <task>` in
 any terminal and as `nix run .#<task>`.
 
+> **How the devshell tracks this exact checkout:** the flake's `qgis`
+> input is a plain `github:qgis/QGIS` pin by default (so CI and a
+> standalone clone work with no setup). When run from inside an embedded
+> checkout, `.envrc` and the `qgis-dev`/`nix run .#<task>` wrappers
+> override it at invocation time with this checkout's real path, so the
+> devshell always matches whatever QGIS revision you actually have
+> checked out — no flag to remember, it's baked into both front doors.
+
 ## Everyday commands
 
 | Task | Neovim | Terminal |
@@ -65,6 +71,7 @@ any terminal and as `nix run .#<task>`.
 | Sanitizer run / valgrind / heaptrack / perf | `<leader>pa…` | `qgis-dev qa asan` |
 | Build-time trends (logged every build) | `<leader>pG` | `qgis-dev stats` |
 | CPU performance mode during builds | `<leader>pe` | `qgis-dev perf build-toggle` |
+| Sync new QGIS deps after `git pull` | `<leader>pU` | `qgis-dev sync` (direnv also does this on your next prompt, unprompted) |
 | Health + isolation check | `<leader>pv` | `qgis-dev doctor` |
 
 Build times are logged to
@@ -100,7 +107,8 @@ checkout deletes *ignored* files — which now includes this embed and your
 - **Existing pre-push hook?** bootstrap won't overwrite it — chain the guard
   by calling `overlay/hooks/pre-push` from yours.
 - **Hacking on this repo:** `nix develop .#tooling` gives shellcheck, bats,
-  gitleaks, reuse, statix and nixfmt; run `pre-commit install` here too.
+  gitleaks, reuse, statix and nixfmt; run `pre-commit install` here too. No
+  QGIS checkout needed — this shell never touches `qgis.packages`.
 - Licence: MIT for this tooling. It orchestrates local builds of GPL-2.0+
   QGIS but links nothing, so no copyleft obligation attaches to the tooling
   itself.

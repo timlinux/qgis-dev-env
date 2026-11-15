@@ -6,8 +6,29 @@
   nixConfig.bash-prompt = "\\[\\033[1m\\][qgis-dev]\\[\\033[m\\] \\w > ";
 
   inputs = {
-    # Upstream QGIS flake, used read-only: we compose our devshell on top of
-    # theirs (SRS C2, FR-N1) and reuse their nixpkgs pin (FR-N6).
+    # Upstream QGIS flake. Portable, CI-safe default — this is what gets
+    # fetched whenever nothing overrides it (CI, `nix flake check`, a
+    # standalone clone of this repo).
+    #
+    # When genuinely embedded one level under a QGIS checkout (SRS C2,
+    # FR-N1), local activation (`.envrc`, the `qgis-dev` wrapper in
+    # `apps.*`) overrides this at invocation time with
+    # `--override-input qgis "git+file://<absolute qgis root>" --impure`,
+    # so the devshell tracks whatever QGIS revision is actually checked
+    # out instead of this pin. Two things that override deliberately is
+    # NOT:
+    #   - A relative `path:..`/path-literal input declared here: every
+    #     spelling of "a relative path crossing this repo's own git tree"
+    #     hits the same Nix bug on some versions — "'flake.nix' is too
+    #     short to be a valid store path". An *absolute* path supplied at
+    #     the CLI never goes through that code path, and never gets baked
+    #     into the committed `flake.lock` as a machine-specific path.
+    #   - A bare `path:<abs>` override (no `git+file:`): upstream's own
+    #     flake.nix selects its source via `lib.fileset.gitTracked`, which
+    #     refuses a plain directory copy outright ("You could make this
+    #     work by using a fetcher such as fetchGit"). `git+file:` fetches
+    #     it as a git source instead — the same kind of fetch the
+    #     `github:` pin below already succeeds with.
     qgis.url = "github:qgis/QGIS";
     nixpkgs.follows = "qgis/nixpkgs";
     # Tim's fully configured Neovim — the standard editor of this devshell
@@ -60,6 +81,7 @@
         "perf"
         "ccache-stats"
         "ccache-zero"
+        "sync"
         "doctor"
       ];
     in
@@ -69,6 +91,10 @@
         let
           qt = pkgs.qt6Packages;
           py = pkgs.python3Packages;
+          # Qt3D's renderer plugin (OpenGL backend for QGIS's 3D map view)
+          # lives in its own plugin root, same as qtwayland/qtsvg below.
+          # Leading ":" so it's a no-op when qt3d isn't in this pin.
+          qt3dPluginRoot = lib.optionalString (qt ? qt3d) ":${qt.qt3d}/${qt.qtbase.qtPluginPrefix}";
 
           # The task runner: a real dotfile deployed by reference (SRS C5).
           qgisDev = pkgs.runCommandLocal "qgis-dev" { } ''
@@ -120,21 +146,28 @@
             pkgs.pkg-config # cmake feature probes degrade silently without it
             pkgs.gnuplot # build-time trend graphs (qgis-dev stats --graph)
             pkgs.qt6.qttools # Qt Designer / Linguist / Assistant for .ui work
-          ];
+            # OpenGL + Qt3D dev headers/libs, explicit here rather than
+            # relying on whichever subset comes in transitively via
+            # qtbase/qgis, so QGIS's 3D map view reliably finds and links
+            # against them (find_package(OpenGL), find_package(Qt6
+            # COMPONENTS 3D*)).
+            pkgs.libGL
+            pkgs.libGLU
+          ]
+          ++ lib.optionals (qt ? qt3d) [ qt.qt3d ];
 
-          qaTools =
-            [
-              pkgs.valgrind
-              pkgs.heaptrack
-              pkgs.cppcheck
-            ]
-            ++ lib.optionals (pkgs ? hotspot) [ pkgs.hotspot ]
-            ++ lib.optionals (pkgs ? massif-visualizer) [ pkgs.massif-visualizer ]
-            ++ lib.optionals (pkgs ? kdePackages && pkgs.kdePackages ? kcachegrind) [
-              pkgs.kdePackages.kcachegrind
-            ]
-            ++ lib.optionals (pkgs ? gammaray) [ pkgs.gammaray ]
-            ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.linuxPackages.perf ];
+          qaTools = [
+            pkgs.valgrind
+            pkgs.heaptrack
+            pkgs.cppcheck
+          ]
+          ++ lib.optionals (pkgs ? hotspot) [ pkgs.hotspot ]
+          ++ lib.optionals (pkgs ? massif-visualizer) [ pkgs.massif-visualizer ]
+          ++ lib.optionals (pkgs ? kdePackages && pkgs.kdePackages ? kcachegrind) [
+            pkgs.kdePackages.kcachegrind
+          ]
+          ++ lib.optionals (pkgs ? gammaray) [ pkgs.gammaray ]
+          ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.linuxPackages.perf ];
 
           sidecarTools = [
             pkgs.bats
@@ -188,7 +221,7 @@
               # qtwayland, SVG icon rendering in qtsvg/qtimageformats. Never
               # pin QT_QPA_PLATFORM_PLUGIN_PATH — it restricts the platform
               # search to one directory and breaks wayland sessions.
-              export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+              export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
               # QML modules (QtQuick.Controls etc. — the app's QML UI parts)
               export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}''${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
               export QML2_IMPORT_PATH="$QML_IMPORT_PATH"
@@ -290,8 +323,19 @@
             type = "app";
             program = toString (
               pkgs.writeShellScript "qgis-dev-${name}" ''
+                set -euo pipefail
+                # Override `qgis` with the real embedding checkout (resolved
+                # from cwd, same as qgis-dev's own init()) rather than the
+                # flake's committed github pin — see flake.nix inputs for
+                # why this is an invocation-time git+file override, not a
+                # declared input.
+                qgis_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+                  echo "qgis-dev: error: not inside a QGIS checkout" >&2
+                  exit 1
+                }
                 exec nix --extra-experimental-features "nix-command flakes" \
-                  develop ${self} --command qgis-dev ${name} "$@"
+                  develop --impure --override-input qgis "git+file://$qgis_root" \
+                  ${self} --command qgis-dev ${name} "$@"
               ''
             );
             meta.description = "qgis-dev ${name} (inside the overlay devshell)";

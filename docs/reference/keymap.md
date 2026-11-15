@@ -36,6 +36,7 @@ label, runs asynchronously, and reports failures to the quickfix list.
 | `<leader>pe` | Perf boost toggle | performance power profile during builds |
 | `<leader>pG` | Build-time trends | logged history: table + sparkline |
 | `<leader>pR` | Build report | branded PDF infographic, opens in your viewer |
+| `<leader>pU` | Sync QGIS deps | refresh the devshell now, after a `git pull` in the checkout |
 | `<leader>pv` | Doctor | health + isolation report (all worktrees) |
 | `<leader>pq` | Last task output | reopen the last task's output buffer |
 

@@ -82,4 +82,21 @@ Neovim menu. Run from anywhere inside a QGIS checkout or worktree.
 | `qgis-dev report [--pdf\|--svg\|--png] [--open]` | Branded multi-panel build-performance infographic (see [Build profiles & flags](profiles.md#analysing-your-build-history)) |
 | `qgis-dev perf on\|off\|build-toggle\|status` | CPU performance power-profile control |
 | `qgis-dev ccache-stats` / `ccache-zero` | Cache statistics / reset counters |
+| `qgis-dev sync` | Nudge direnv to refresh the devshell right now — see below |
 | `qgis-dev doctor` | Toolchain + isolation health across all worktrees |
+
+### `sync` — after a `git pull` in the QGIS checkout
+
+The devshell tracks this checkout via an invocation-time
+`--override-input qgis` (see [The flake](../internals/the-flake.md#inputs)),
+re-read fresh on every activation rather than locked — so new upstream
+dependencies (a bumped Qt, a new `WITH_*` flag) flow in automatically.
+Direnv watches QGIS's own `flake.nix`/`flake.lock` and re-evaluates on
+your very next shell prompt after a `git pull` changes them. Nothing to
+run.
+
+`qgis-dev sync` (`<leader>pU`, `nix run .#sync`) is only for forcing that
+**right now**, inside a session you already have open: it invalidates
+nix-direnv's cache (`direnv reload`) so the refreshed toolchain shows up
+without closing the terminal or editor. There's no `flake.lock` to update
+— the override is never persisted there.
