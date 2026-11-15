@@ -124,6 +124,7 @@
             pkgs.pkg-config # cmake feature probes degrade silently without it
             pkgs.gnuplot # build-time trend graphs (qgis-dev stats --graph)
             pkgs.qt6.qttools # Qt Designer / Linguist / Assistant for .ui work
+            pkgs.power-profiles-daemon
           ];
 
           qaTools =

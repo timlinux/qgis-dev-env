@@ -16,6 +16,9 @@ export QGIS_DEV_SIDECAR="$_qde_sidecar"
 # (SRS FR-B2). CCACHE_DIR wins over the config file's cache_dir.
 export CCACHE_CONFIGPATH="$_qde_sidecar/overlay/ccache.conf"
 export CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/qgis-ccache"
+# Treat paths under the checkouts' common parent as relative, so sibling
+# worktrees hash identically (SRS FR-W3). Assumes worktrees are siblings.
+export CCACHE_BASEDIR="$(dirname "$PWD")"
 
 # Qt, uic and lualatex need a UTF-8 locale; interactive sessions often lack
 # one. Done here (not the shellHook) so it applies in the user's context.
