@@ -484,53 +484,26 @@ PRESET
 }
 
 cmd_vscode() {
-  command -v cp >/dev/null || die "Qt Creator not available (enter the devshell)"
-  # Configure for real BEFORE Qt Creator ever opens — Build/Run work the
+  command -v code >/dev/null || die "Visual Studio Code not available (enter the devshell)"
+
+  # Configure for real BEFORE Visual Studio Code ever opens — Build/Run work the
   # instant the window appears, with no "project not configured" step.
   [[ -f "$BUILD/build.ninja" ]] || cmd_configure
   
-  local prof user_data_dir ext_dir
+  local prof user_dir extensions_dir settings_file extensions_source settings_source
   prof="$(current_profile)"
-  user_data_dir="$STATE/vscode/user-data"
-  ext_dir="$STATE/vscode/extensions"
-  mkdir -p "$user_data_dir" "$ext_dir" "$ROOT/.vscode"
+  user_dir="$STATE/vscode"
+  extensions_dir="$STATE/vscode-extensions"
+  settings_file="$user_dir/settings.json"
+  extensions_source="$SIDECAR/lib/vscode-extensions.json"
+  settings_source="$SIDECAR/lib/vscode-settings.json"
   
-  #Expose the single active preset pointing to the configured build directory
-  cat >"$ROOT/CMakeUserPresets.json" <<PRESET
-{
-  "version": 3,
-  "configurePresets": [
-    {
-      "name": "qgis-dev-active",
-      "displayName": "QGIS (qgis-dev — profile: $prof)",
-      "generator": "Ninja",
-      "binaryDir": "\${sourceDir}/build"
-    }
-  ]
-}
-PRESET
+  note "VS Code: $ROOT (profile '$prof', build/ configured; settings isolated under $STATE/vscode)"
 
-  # Pre-seed workspace settings so CMake Tools and C++ extensions
-  # latch directly onto the existing build directory without prompts
-  local ws_settings="$ROOT/.vscode/settings.json"
-  if [[ ! -f "$ws_settings" ]]; then
-    cat >"$ws_settings" <<JSON
-{
-  "cmake.configureOnOpen": false,
-  "cmake.defaultConfigurePresetName": "qgis-dev-active",
-  "cmake.buildDirectory": "\${workspaceFolder}/build",
-  "C_Cpp.default.compileCommands": "\${workspaceFolder}/build/compile_commands.json",
-  "editor.fontSize": ${QGIS_DEV_VSCODE_FONT_SIZE:-14}
-}
-JSON
-  fi
-
-  note "VS Code: $ROOT (profile '$prof', build/ already configured; isolated user data under $STATE/vscode)"
-
-  setsid code \
-    --user-data-dir "$user_data_dir" \
-    --extensions-dir "$ext_dir" \
-    "$ROOT" "$@" >/dev/null 2>&1 </dev/null &
+  VSCODE_PROFILE="$prof" VSCODE_USER_DIR="$user_dir" VSCODE_EXT_DIR="$extensions_dir" \
+    VSCODE_SETTINGS_FILE="$settings_file" VSCODE_EXTENSIONS_SOURCE="$extensions_source" \
+    VSCODE_SETTINGS_SOURCE="$settings_source" WORKING_DIR="$ROOT" \
+    setsid bash "$SIDECAR/lib/start-vscode.sh" >/dev/null 2>&1 </dev/null &
   disown 2>/dev/null || true
 }
 

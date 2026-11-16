@@ -111,7 +111,7 @@
             p:
             [
               p.pyqt6
-              p.qscintilla-qt6
+              p.pyqt6-qscintilla
               p.nose2 # required by processing/tests/ProcessingGeneralTest.py
             ]
             ++ lib.optionals (p ? pyqt6-stubs) [ p.pyqt6-stubs ]
@@ -151,6 +151,7 @@
             pkgs.gnuplot # build-time trend graphs (qgis-dev stats --graph)
             pkgs.qt6.qttools # Qt Designer / Linguist / Assistant for .ui work
             pkgs.power-profiles-daemon
+            pkgs.jq
             # OpenGL + Qt3D dev headers/libs, explicit here rather than
             # relying on whichever subset comes in transitively via
             # qtbase/qgis, so QGIS's 3D map view reliably finds and links
@@ -167,12 +168,15 @@
             pkgs.cppcheck
           ]
           ++ lib.optionals (pkgs ? hotspot) [ pkgs.hotspot ]
-          ++ lib.optionals (pkgs ? massif-visualizer) [ pkgs.massif-visualizer ]
+          ++ lib.optionals
+            (let r = builtins.tryEval (pkgs.massif-visualizer.drvPath or null);
+              in r.success && r.value != null)
+            [ pkgs.massif-visualizer ]
           ++ lib.optionals (pkgs ? kdePackages && pkgs.kdePackages ? kcachegrind) [
             pkgs.kdePackages.kcachegrind
           ]
           ++ lib.optionals (pkgs ? gammaray) [ pkgs.gammaray ]
-          ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.linuxPackages.perf ];
+          ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.perf ];
 
           sidecarTools = [
             pkgs.bats
@@ -239,8 +243,8 @@
               # Store paths are resolved here, at shell time — never committed
               # into dotfiles (SRS C6). Consumed by `qgis-dev configure`.
               export QGIS_DEV_QT_PLUGINS_DIR="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}"
-              export QGIS_DEV_QSCI_SIP_DIR="${py.qscintilla-qt6}/${pkgs.python3.sitePackages}/PyQt6/bindings"
-              export QGIS_DEV_QSCI_DIST_INFO="${py.qscintilla-qt6}/${pkgs.python3.sitePackages}/pyqt6_qscintilla-${py.qscintilla-qt6.version}.dist-info"
+              export QGIS_DEV_QSCI_SIP_DIR="${py.pyqt6-qscintilla}/${pkgs.python3.sitePackages}/PyQt6/bindings"
+              export QGIS_DEV_QSCI_DIST_INFO="${py.pyqt6-qscintilla}/${pkgs.python3.sitePackages}/pyqt6_qscintilla-${py.pyqt6-qscintilla.version}.dist-info"
               export QGIS_DEV_PYQT6_DIST_INFO="${py.pyqt6}/${pkgs.python3.sitePackages}/pyqt6-${py.pyqt6.version}.dist-info"
               export QGIS_DEV_PYTHON="${devPython}/bin/python3"
               # Report infographic template as a store path, so `qgis-dev
