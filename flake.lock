@@ -339,11 +339,11 @@
         "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1791809567,
-        "narHash": "sha256-Sdn0F54t1nmLB5eCMa3Y4U1Noi64DvB80EA2jdf+q10=",
+        "lastModified": 1794790452,
+        "narHash": "sha256-AdRfIy4sPUHhr2TxF1ZTwb9qm3XkJOp1x+07VYcgrzU=",
         "owner": "qgis",
         "repo": "QGIS",
-        "rev": "3b7b3208a797d7a83bcfc90e2aeba42ae8740c87",
+        "rev": "a840a11aca8eaff581f1ef8120564f27a7fc8245",
         "type": "github"
       },
       "original": {
