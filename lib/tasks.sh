@@ -489,7 +489,7 @@ cmd_vscode() {
   # Configure for real BEFORE Visual Studio Code ever opens — Build/Run work the
   # instant the window appears, with no "project not configured" step.
   [[ -f "$BUILD/build.ninja" ]] || cmd_configure
-  
+
   local prof user_dir extensions_dir settings_file extensions_source settings_source
   prof="$(current_profile)"
   user_dir="$STATE/vscode"
@@ -497,13 +497,13 @@ cmd_vscode() {
   settings_file="$user_dir/settings.json"
   extensions_source="$SIDECAR/lib/vscode-extensions.json"
   settings_source="$SIDECAR/lib/vscode-settings.json"
-  
+
   note "VS Code: $ROOT (profile '$prof', build/ configured; settings isolated under $STATE/vscode)"
 
   VSCODE_PROFILE="$prof" VSCODE_USER_DIR="$user_dir" VSCODE_EXT_DIR="$extensions_dir" \
     VSCODE_SETTINGS_FILE="$settings_file" VSCODE_EXTENSIONS_SOURCE="$extensions_source" \
     VSCODE_SETTINGS_SOURCE="$settings_source" WORKING_DIR="$ROOT" \
-    setsid bash "$SIDECAR/lib/start-vscode.sh" >/dev/null 2>&1 </dev/null &
+    setsid bash "$SIDECAR/lib/start-vscode.sh" "$@" >/dev/null 2>&1 </dev/null &
   disown 2>/dev/null || true
 }
 

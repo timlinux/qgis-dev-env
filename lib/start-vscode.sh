@@ -50,8 +50,6 @@ mapfile -t missing_recommended_extensions < <(LC_ALL=C comm -23 \
   <(printf '%s\n' "${recommended_extensions[@]}") \
   <(printf '%s\n' "${installed_and_recommended_extensions[@]}"))
 
-echo "${missing_recommended_extensions[@]}"
-
 green=$'\033[32m'
 reset=$'\033[0m'
 
@@ -77,5 +75,4 @@ echo "Visual Studio Code Extensions Directory: $VSCODE_EXT_DIR"
 echo "Visual Studio Code Settings file: $VSCODE_SETTINGS_FILE"
 echo "Working Directory: $WORKING_DIR"
 
-vscode "$WORKING_DIR"
-echo "hello"
+vscode "$WORKING_DIR" "$@"
