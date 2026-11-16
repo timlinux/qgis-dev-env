@@ -177,7 +177,15 @@ cmd_build() {
   local h0 m0 h1 m1 t0 t1 rc=0
   read -r h0 m0 <<<"$(ccache_counters)"
   t0="$(date +%s)"
-  CCACHE_NAMESPACE="$prof" ninja -C "$BUILD" "${ninja_args[@]}" "${targets[@]}" || rc=$?
+  # asan-ubsan binaries include build-time tools ninja runs as custom
+  # commands (e.g. the SRS db generator) — LeakSanitizer's default
+  # detect_leaks=1 can fail the build over trivial toolchain-internal
+  # leaks (e.g. the C++ demangler's one-time cache). Real leak hunting
+  # happens via `qgis-dev run`, which sets its own ASAN_OPTIONS with
+  # detect_leaks=1 deliberately.
+  local -a asan_env=()
+  [[ "$prof" == "asan-ubsan" ]] && asan_env=(ASAN_OPTIONS="detect_leaks=0")
+  CCACHE_NAMESPACE="$prof" env "${asan_env[@]}" ninja -C "$BUILD" "${ninja_args[@]}" "${targets[@]}" || rc=$?
   t1="$(date +%s)"
   read -r h1 m1 <<<"$(ccache_counters)"
 
