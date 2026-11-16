@@ -18,3 +18,13 @@ CMAKE_ARGS+=(
   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
   -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
 )
+# cmd_configure sources this file and then runs cmake in the same shell, so
+# this scopes to the configure step only — it does NOT reach `qgis-dev run`
+# (which sets its own ASAN_OPTIONS with detect_leaks=1 separately, see
+# cmd_run). Needed because CMake applies CMAKE_C/CXX_FLAGS above to its own
+# try_compile/try_run probes too, not just real build targets — e.g. QGIS's
+# QCA detection check loads Qt6Core + OpenSSL + several QCA provider
+# plugins, and LeakSanitizer's exit-time report for the resulting pile of
+# "leaked" global state can hang for hours trying to symbolize it.
+# Configure-time probes only need an exit code, not a leak report.
+export ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}detect_leaks=0"
