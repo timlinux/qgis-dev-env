@@ -153,6 +153,14 @@
             # COMPONENTS 3D*)).
             pkgs.libGL
             pkgs.libGLU
+            # QGIS's CMakeLists.txt now requires the Qt6WaylandClient
+            # component (find_package(Qt6 ... WaylandClient)). Elsewhere in
+            # this file qt.qtwayland is only interpolated into QT_PLUGIN_PATH
+            # (a runtime string, not a buildInput), so its cmake package
+            # config was never on CMAKE_PREFIX_PATH during configure. Listing
+            # it here as a real build input is what actually satisfies
+            # find_package.
+            qt.qtwayland
           ]
           ++ lib.optionals (qt ? qt3d) [ qt.qt3d ];
 
@@ -162,7 +170,12 @@
             pkgs.cppcheck
           ]
           ++ lib.optionals (pkgs ? hotspot) [ pkgs.hotspot ]
-          ++ lib.optionals (pkgs ? massif-visualizer) [ pkgs.massif-visualizer ]
+          # nixpkgs keeps removed packages as a `throw` stub rather than
+          # deleting the attribute, so `pkgs ? massif-visualizer` alone still
+          # passes — tryEval is needed to actually detect the removal.
+          ++ lib.optionals
+            ((pkgs ? massif-visualizer) && (builtins.tryEval pkgs.massif-visualizer).success)
+            [ pkgs.massif-visualizer ]
           ++ lib.optionals (pkgs ? kdePackages && pkgs.kdePackages ? kcachegrind) [
             pkgs.kdePackages.kcachegrind
           ]
