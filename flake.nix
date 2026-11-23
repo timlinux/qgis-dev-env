@@ -241,14 +241,22 @@
             ++ sidecarTools;
 
             shellHook = ''
+              # Prevent host configuration for qt tools from intefering with this setup. 
+              unset QT_QPA_PLATFORMTHEME
+              unset QT_STYLE_OVERRIDE
+
               # Qt runtime plugin discovery for build-tree binaries. Roots,
               # not a single dir: the wayland platform plugin lives in
               # qtwayland, SVG icon rendering in qtsvg/qtimageformats. Never
               # pin QT_QPA_PLATFORM_PLUGIN_PATH — it restricts the platform
               # search to one directory and breaks wayland sessions.
-              export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+              # export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+              # Prevent host configuration for qt tools from intefering with this setup.
+              export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}"
               # QML modules (QtQuick.Controls etc. — the app's QML UI parts)
-              export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}''${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+              # export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}''${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+              # Prevent host configuration for qt tools from intefering with this setup.
+              export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}"
               export QML2_IMPORT_PATH="$QML_IMPORT_PATH"
               # Store paths are resolved here, at shell time — never committed
               # into dotfiles (SRS C6). Consumed by `qgis-dev configure`.
