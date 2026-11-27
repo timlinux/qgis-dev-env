@@ -55,7 +55,10 @@
         "aarch64-linux"
       ];
       lib = nixpkgs.lib;
-      forAllSystems = f: lib.genAttrs systems (system: f (import nixpkgs { inherit system; }) system);
+      forAllSystems = f: lib.genAttrs systems (system: f (import nixpkgs { inherit system; config.allowUnfreePredicate = pkg:
+          builtins.elem (lib.getName pkg) [
+            "vscode"
+          ];}) system);
 
       # Every task exposed as `nix run .#<task>` — same names as the Neovim
       # menu; both call the single qgis-dev implementation (FR-N4, NFR-M1).
@@ -83,6 +86,7 @@
         "ccache-zero"
         "sync"
         "doctor"
+        "vscode"
       ];
     in
     {
@@ -107,7 +111,7 @@
             p:
             [
               p.pyqt6
-              p.qscintilla-qt6
+              p.pyqt6-qscintilla
               p.nose2 # required by processing/tests/ProcessingGeneralTest.py
             ]
             ++ lib.optionals (p ? pyqt6-stubs) [ p.pyqt6-stubs ]
@@ -146,6 +150,8 @@
             pkgs.pkg-config # cmake feature probes degrade silently without it
             pkgs.gnuplot # build-time trend graphs (qgis-dev stats --graph)
             pkgs.qt6.qttools # Qt Designer / Linguist / Assistant for .ui work
+            pkgs.power-profiles-daemon
+            pkgs.jq
             # OpenGL + Qt3D dev headers/libs, explicit here rather than
             # relying on whichever subset comes in transitively via
             # qtbase/qgis, so QGIS's 3D map view reliably finds and links
@@ -180,7 +186,7 @@
             pkgs.kdePackages.kcachegrind
           ]
           ++ lib.optionals (pkgs ? gammaray) [ pkgs.gammaray ]
-          ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.linuxPackages.perf ];
+          ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.perf ];
 
           sidecarTools = [
             pkgs.bats
@@ -197,6 +203,9 @@
           # (overlay-owned) gives it the same build/ tree + ccache as the CLI
           # and Neovim with no manual kit setup. Guarded: absent on some pins.
           qtCreator = lib.optionals (pkgs ? qtcreator) [ pkgs.qtcreator ];
+
+          # Visual Studio Code
+          vsCode = lib.optionals (pkgs ? vscode) [ pkgs.vscode ];
 
           # mkdocs stack for the developer handbook (FR-D4) — mirrors the
           # kartoza/InfrastructureMapper documentation toolchain.
@@ -220,29 +229,40 @@
             packages = [
               qgisDev
               devPython
+              qt.qtbase
+              qt.qtwayland
             ]
             ++ editor
             ++ qtCreator
+            ++ vsCode
             ++ lspServers
             ++ buildTools
             ++ qaTools
             ++ sidecarTools;
 
             shellHook = ''
+              # Prevent host configuration for qt tools from intefering with this setup. 
+              unset QT_QPA_PLATFORMTHEME
+              unset QT_STYLE_OVERRIDE
+
               # Qt runtime plugin discovery for build-tree binaries. Roots,
               # not a single dir: the wayland platform plugin lives in
               # qtwayland, SVG icon rendering in qtsvg/qtimageformats. Never
               # pin QT_QPA_PLATFORM_PLUGIN_PATH — it restricts the platform
               # search to one directory and breaks wayland sessions.
-              export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+              # export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}''${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+              # Prevent host configuration for qt tools from intefering with this setup.
+              export QT_PLUGIN_PATH="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}:${qt.qtwayland}/${qt.qtbase.qtPluginPrefix}:${qt.qtsvg}/${qt.qtbase.qtPluginPrefix}:${qt.qtimageformats}/${qt.qtbase.qtPluginPrefix}${qt3dPluginRoot}"
               # QML modules (QtQuick.Controls etc. — the app's QML UI parts)
-              export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}''${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+              # export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}''${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+              # Prevent host configuration for qt tools from intefering with this setup.
+              export QML_IMPORT_PATH="${qt.qtdeclarative}/${qt.qtbase.qtQmlPrefix}"
               export QML2_IMPORT_PATH="$QML_IMPORT_PATH"
               # Store paths are resolved here, at shell time — never committed
               # into dotfiles (SRS C6). Consumed by `qgis-dev configure`.
               export QGIS_DEV_QT_PLUGINS_DIR="${qt.qtbase}/${qt.qtbase.qtPluginPrefix}"
-              export QGIS_DEV_QSCI_SIP_DIR="${py.qscintilla-qt6}/${pkgs.python3.sitePackages}/PyQt6/bindings"
-              export QGIS_DEV_QSCI_DIST_INFO="${py.qscintilla-qt6}/${pkgs.python3.sitePackages}/pyqt6_qscintilla-${py.qscintilla-qt6.version}.dist-info"
+              export QGIS_DEV_QSCI_SIP_DIR="${py.pyqt6-qscintilla}/${pkgs.python3.sitePackages}/PyQt6/bindings"
+              export QGIS_DEV_QSCI_DIST_INFO="${py.pyqt6-qscintilla}/${pkgs.python3.sitePackages}/pyqt6_qscintilla-${py.pyqt6-qscintilla.version}.dist-info"
               export QGIS_DEV_PYQT6_DIST_INFO="${py.pyqt6}/${pkgs.python3.sitePackages}/pyqt6-${py.pyqt6.version}.dist-info"
               export QGIS_DEV_PYTHON="${devPython}/bin/python3"
               # Report infographic template as a store path, so `qgis-dev
@@ -258,6 +278,11 @@
                 mkdir -p .dev-env
                 ln -sfn "$QGIS_DEV_PYTHON" .dev-env/python
               fi
+              # Visual Studio Code
+              export VSCODE_USER_DIR="$(pwd)/qgis-dev-env/.vscode"
+              export VSCODE_PROFILE="qgis-dev-env"
+              export VSCODE_EXT_DIR="$(pwd)/qgis-dev-env/.vscode-extensions"
+              export VSCODE_SETTINGS_FILE="$VSCODE_USER_DIR/settings.json"
               # Branded activation banner (real dotfile per SRS C5).
               source ${./lib/shell-motd.sh}
             '';

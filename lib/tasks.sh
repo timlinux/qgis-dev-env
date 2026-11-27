@@ -443,11 +443,12 @@ cmd_designer() {
 }
 
 cmd_qtcreator() {
-  command -v qtcreator >/dev/null || die "Qt Creator not available (enter the devshell)"
-  # Configure for real BEFORE Qt Creator ever opens — Build/Run work the
+  command -v code >/dev/null || die "VS Code not available (enter the devshell)"
+  # Configure for real BEFORE VS Code ever opens — Build/Run work the
   # instant the window appears, with no "project not configured" step.
   [[ -f "$BUILD/build.ninja" ]] || cmd_configure
-  local prof settings
+
+  local prof user_data_dir ext_dir
   prof="$(current_profile)"
   settings="$STATE/qtcreator"
   mkdir -p "$settings"
@@ -489,6 +490,31 @@ PRESET
   setsid qtcreator -settingspath "$settings" "$ROOT/CMakeLists.txt" "$@" >/dev/null 2>&1 </dev/null &
   disown 2>/dev/null || true
 }
+
+cmd_vscode() {
+  command -v code >/dev/null || die "Visual Studio Code not available (enter the devshell)"
+
+  # Configure for real BEFORE Visual Studio Code ever opens — Build/Run work the
+  # instant the window appears, with no "project not configured" step.
+  [[ -f "$BUILD/build.ninja" ]] || cmd_configure
+
+  local prof user_dir extensions_dir settings_file extensions_source settings_source
+  prof="$(current_profile)"
+  user_dir="$STATE/vscode"
+  extensions_dir="$STATE/vscode-extensions"
+  settings_file="$user_dir/settings.json"
+  extensions_source="$SIDECAR/lib/vscode-extensions.json"
+  settings_source="$SIDECAR/lib/vscode-settings.json"
+
+  note "VS Code: $ROOT (profile '$prof', build/ configured; settings isolated under $STATE/vscode)"
+
+  VSCODE_PROFILE="$prof" VSCODE_USER_DIR="$user_dir" VSCODE_EXT_DIR="$extensions_dir" \
+    VSCODE_SETTINGS_FILE="$settings_file" VSCODE_EXTENSIONS_SOURCE="$extensions_source" \
+    VSCODE_SETTINGS_SOURCE="$settings_source" WORKING_DIR="$ROOT" \
+    setsid bash "$SIDECAR/lib/start-vscode.sh" "$@" >/dev/null 2>&1 </dev/null &
+  disown 2>/dev/null || true
+}
+
 
 cmd_test() {
   [[ -f "$BUILD/build.ninja" ]] || die "not configured — run 'qgis-dev configure' first"
@@ -933,6 +959,8 @@ qgis-dev — QGIS developer tasks (shared by `nix run .#<task>` and Neovim)
                              .ui for a source file when given one
   qtcreator [args…]          configure, then open Qt Creator — no kit wizard,
                              no preset picker, isolated settings (see FR-K)
+  vscode [args…]             configure, then open Visual Studion Code
+                             no preset picker, isolated settings (see FR-K)
   test [ctest args…]         run ctest (offscreen)
   test-file <path>           run the test matching a source file
   docs | docs-serve          build / serve the API docs
@@ -1000,6 +1028,10 @@ designer)
 qtcreator)
   init
   cmd_qtcreator "$@"
+  ;;
+vscode)
+  init
+  cmd_vscode "$@"
   ;;
 test)
   init
